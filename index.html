@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multiplayer Drawing App</title>
+  <link rel="stylesheet" href="drawing_style.css">
+</head>
+<body>
+  <h1>SWITCH TO DRAW</h1>
+  
+  <!-- Drawing canvas -->
+  <canvas id="drawingCanvas" width="500" height="500"></canvas>
+  <div class="container">
+    <!-- Controls for color and brush size -->
+    <div class="controls">
+      <label for="colorPicker">PICK A COLOR:</label>
+      <input type="color" id="colorPicker" style="display:none;"> <!-- Hidden native color picker -->
+      <div class="color-display" onclick="document.getElementById('colorPicker').click();"></div> <!-- Custom circular button -->
+      <label for="brushSize">BRUSH SIZE:</label>
+      <input type="range" id="brushSize" min="1" max="50" value="5">
+      <button id="clearCanvas">🗑️ Clear Canvas?</button>
+    </div>
+  </div>
+
+  <div id="timerDisplay">Time Left: 2:00</div> <!-- Move this div outside of the script tags -->
+
+  <script>
+    let currentPlayer = 1; // 1 for Player A, 2 for Player B
+    const totalTime = 12 * 60; // Total game time in seconds
+    let currentTime = 120; // 2 minutes for each player
+    let totalRounds = 6; // 6 total rounds (3 for each player)
+    let roundsCompleted = 0;
+
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+
+    // Event listeners for drawing
+    canvas.addEventListener('mousedown', () => { drawing = true; });
+    canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
+    canvas.addEventListener('mousemove', draw);
+
+    function draw(event) {
+      if (!drawing) return;
+
+      const pos = {
+        x: event.clientX - canvas.offsetLeft,
+        y: event.clientY - canvas.offsetTop,
+        color: colorPicker.value,
+        size: brushSize.value
+      };
+
+      drawOnCanvas(pos);
+      socket.emit('drawing', pos); // Emit the drawing data to the server for other users to see
+    }
+
+    const colorPicker = document.getElementById('colorPicker');
+    const brushSize = document.getElementById('brushSize');
+    const colorDisplay = document.querySelector('.color-display');
+
+    colorPicker.addEventListener('input', function() {
+      colorDisplay.style.backgroundColor = colorPicker.value; // Change the color display's background
+    });
+
+    const clearButton = document.getElementById('clearCanvas');
+    clearButton.addEventListener('click', function() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // Clears the canvas
+    });
+
+    function drawOnCanvas(pos) {
+      ctx.lineWidth = pos.size;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = pos.color;
+
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    }
+
+    function updateTimerDisplay() {
+      const timerDisplay = document.getElementById('timerDisplay');
+      const minutes = Math.floor(currentTime / 60);
+      const seconds = currentTime % 60;
+      timerDisplay.textContent = `Time Left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+    }
+
+    function startTimer() {
+      const timerInterval = setInterval(() => {
+        if (currentTime <= 0) {
+          clearInterval(timerInterval);
+          switchPlayer();
+          if (roundsCompleted < totalRounds) {
+            currentTime = 120; // Reset time for the next player
+            roundsCompleted++;
+            startTimer(); // Start timer for the next player
+          }
+        } else {
+          currentTime--;
+          updateTimerDisplay();
+        }
+      }, 1000);
+    }
+
+    startTimer();
+
+    function switchPlayer() {
+      toggleCanvas(false); // Disable current player's canvas
+      currentPlayer = currentPlayer === 1 ? 2 : 1; // Switch player
+      toggleCanvas(true); // Enable next player's canvas
+      currentTime = 120; // Reset time for the new player
+      updateTimerDisplay(); // Update the display
+    }
+
+    function toggleCanvas(enable) {
+      canvas.style.pointerEvents = enable ? "auto" : "none"; // Enables or disables drawing
+    }
+  </script>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io(); // This connects your frontend to the backend via Socket.IO
+
+    // Listen for 'drawing' events from other clients
+    socket.on('drawing', (pos) => {
+      drawOnCanvas(pos); // Draw the received data on the user's canvas
+    });
+  </script>
+
+</body>
+</html>
