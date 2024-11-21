@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multiplayer Drawing App</title>
+  <link rel="stylesheet" href="drawing_style.css">
+</head>
+<body>
+  <h1>SWITCH TO DRAW</h1>
+  
+  <!-- Drawing area -->
+  <canvas id="drawingCanvas" width="500" height="500"></canvas>
+  <!-- Container: ALL controls -->
+  <div class="container">
+
+     <!-- Controls: Color Selection + Brush Size -->
+    <div class="controls">
+      <label for="colorPicker">PICK A COLOR:</label>
+      <!-- Hides Picker; Use custom color display instead + Use the built-in functionality when being clicked -->
+      <input type="color" id="colorPicker" style="display:none;"> <!-- Hide ori. color picker -->
+      
+      <!-- When the user clicks the custom color display -->
+      <!-- Find the hidden original color picker -->
+      <!-- Simulate a click on the original color picker behind the custom one to open it -->
+      <div class="color-display" onclick="document.getElementById('colorPicker').click();"></div> <!-- Custom button -->
+  
+      <label for="brushSize">BRUSH SIZE:</label>
+      <!--Brush size slider-->
+      <input type="range" id="brushSize" min="1" max="50" value="5">
+      <button id="clearCanvas">🗑️ Clear Canvas?</button>
+    </div>
+
+  </div>
+
+  <div id="timerDisplay">Time Left: 2:00</div> 
+
+  <script>
+    let currentPlayer = 1; // 1 for Player A, 2 for Player B
+    const totalTime = 12 * 60; // Total game time in seconds
+    let currentTime = 120; // 2 minutes for each player
+    let totalRounds = 6; // 6 total rounds (3 for each player)
+    let roundsCompleted = 0;
+
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+
+    // Event listeners for drawing
+    canvas.addEventListener('mousedown', () => { drawing = true; }); 
+    canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); }); // When user moves mouse up -> drawing = false -> reset drawing path 
+    canvas.addEventListener('mousemove', draw); // When mouse moves use the draw function
+
+
+    function draw(event) {
+      // No drawing -> exit
+      if (!drawing) return; 
+      // position
+      const pos = {
+        x: event.clientX - canvas.offsetLeft, //X position of mouse counting from the left edge of the window
+        y: event.clientY - canvas.offsetTop, //Counting from top edge of the window
+        color: colorPicker.value,
+        size: brushSize.value
+      };
+
+      drawOnCanvas(pos);
+      socket.emit('drawing', pos); // Emit the drawing data to the server for other users to see
+    }
+
+    const colorPicker = document.getElementById('colorPicker');
+    const brushSize = document.getElementById('brushSize');
+    const colorDisplay = document.querySelector('.color-display');
+
+    // // When the user changes the color, the callback function updates the background color of the color display box.
+    colorPicker.addEventListener('input', function() {
+      colorDisplay.style.backgroundColor = colorPicker.value; 
+    });
+
+    const clearButton = document.getElementById('clearCanvas');
+    //Clear Button
+    clearButton.addEventListener('click', function() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // Clears the canvas
+    });
+
+    //pos: pos, brush, size of brsh, color
+    function drawOnCanvas(pos) {
+      ctx.lineWidth = pos.size; // Thickness of the brush
+      ctx.lineCap = 'round'; // Round the end line
+      ctx.strokeStyle = pos.color; // Line color
+      ctx.lineTo(pos.x, pos.y); // Creates a line from coordinates
+      ctx.stroke(); // draw the lines on canvas
+      ctx.beginPath(); // Begin new lines
+      ctx.moveTo(pos.x, pos.y); // New line starting point
+    }
+
+    // Counting down Timer
+    function updateTimerDisplay() {
+      const timerDisplay = document.getElementById('timerDisplay');
+      const minutes = Math.floor(currentTime / 60);
+      const seconds = currentTime % 60;
+      timerDisplay.textContent = `Time Left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+    }
+
+    function startTimer() {
+      const timerInterval = setInterval(() => {
+        if (currentTime <= 0) {
+          clearInterval(timerInterval);
+          if (roundsCompleted < totalRounds) {
+            currentTime = 120; // Reset time for the next player
+            roundsCompleted++;
+            startTimer(); // Start timer for the next player
+          }
+        } else {
+          currentTime--;
+          updateTimerDisplay();
+        }
+      }, 1000);
+    }
+
+    startTimer();
+
+  </script>
+  
+  <!-- Include Socket.io  -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io(); // Connects webpage to server via Socket.IO and can use var to send or receive info to server
+
+    // Listen (on) for drawing events from another Player and receives pos
+    socket.on('drawing', (pos) => {
+      drawOnCanvas(pos); // Draw the received data on the user's canvas
+    });
+  </script>
+
+</body>
+</html>
