@@ -101,24 +101,6 @@
       timerDisplay.textContent = `Time Left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
     }
 
-    function startTimer() {
-      const timerInterval = setInterval(() => {
-        if (currentTime <= 0) {
-          clearInterval(timerInterval);
-          if (roundsCompleted < totalRounds) {
-            currentTime = 120; // Reset time for the next player
-            roundsCompleted++;
-            startTimer(); // Start timer for the next player
-          }
-        } else {
-          currentTime--;
-          updateTimerDisplay();
-        }
-      }, 1000);
-    }
-
-    startTimer();
-
   </script>
   
   <!-- Include Socket.io  -->
